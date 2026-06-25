@@ -12,6 +12,14 @@ function requireAdminClient() {
   return supabaseAdmin;
 }
 
+async function requireAdminActor() {
+  const profile = await getCurrentProfile();
+  if (profile.role !== "admin") {
+    throw new Error("Only admins can manage users.");
+  }
+  return profile;
+}
+
 function asString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -35,6 +43,7 @@ function sanitizeFileName(fileName: string) {
 }
 
 export async function createUserAction(formData: FormData) {
+  await requireAdminActor();
   const client = requireAdminClient();
   const email = asString(formData, "email");
   const fullName = asString(formData, "full_name");
@@ -43,6 +52,7 @@ export async function createUserAction(formData: FormData) {
   const password = asString(formData, "password") || "Password@12345";
 
   if (!email || !fullName || !role) throw new Error("Full name, email, and role are required.");
+  if ((role === "student" || role === "teacher") && !code) throw new Error("Student or teacher code is required.");
 
   const { data: authData, error: authError } = await client.auth.admin.createUser({
     email,
@@ -70,30 +80,54 @@ export async function createUserAction(formData: FormData) {
 }
 
 export async function updateUserAction(formData: FormData) {
+  await requireAdminActor();
   const client = requireAdminClient();
   const id = asString(formData, "id");
+  const email = asString(formData, "email");
+  const fullName = asString(formData, "full_name");
   const role = asString(formData, "role") as Database["public"]["Enums"]["user_role"];
   const code = asOptionalString(formData, "code");
+  const status = asString(formData, "status") as Database["public"]["Enums"]["account_status"];
+  const password = asString(formData, "password");
 
-  await client
+  if (!id || !email || !fullName || !role || !status) throw new Error("User id, name, email, role, and status are required.");
+  if ((role === "student" || role === "teacher") && !code) throw new Error("Student or teacher code is required.");
+
+  const authUpdate: Parameters<typeof client.auth.admin.updateUserById>[1] = {
+    email,
+    user_metadata: { full_name: fullName, role }
+  };
+  if (password) authUpdate.password = password;
+
+  const { error: authError } = await client.auth.admin.updateUserById(id, authUpdate);
+  if (authError) throw authError;
+
+  const { error } = await client
     .from("profiles")
     .update({
-      full_name: asString(formData, "full_name"),
-      email: asString(formData, "email"),
+      full_name: fullName,
+      email,
       role,
-      status: asString(formData, "status") as Database["public"]["Enums"]["account_status"],
+      status,
       student_code: role === "student" ? code : null,
       teacher_code: role === "teacher" ? code : null
     })
     .eq("id", id);
 
+  if (error) throw error;
+
   revalidateApp();
 }
 
 export async function deleteUserAction(formData: FormData) {
+  await requireAdminActor();
   const client = requireAdminClient();
   const id = asString(formData, "id");
-  await client.auth.admin.deleteUser(id);
+  if (!id) throw new Error("User id is required.");
+
+  const { error } = await client.auth.admin.deleteUser(id);
+  if (error) throw error;
+
   revalidateApp();
 }
 

@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { MoreHorizontal } from "lucide-react";
-import { deleteAssignmentAction, deleteCourseAction, deleteUserAction } from "@/lib/actions";
+import { MoreHorizontal, Save, Trash2 } from "lucide-react";
+import { deleteAssignmentAction, deleteCourseAction, deleteUserAction, updateUserAction } from "@/lib/actions";
 import { t, type Locale } from "@/lib/i18n";
 import type { Assignment, Course, Submission, User } from "@/lib/types";
-import { Badge, Button, Card } from "./ui";
+import { Badge, Button, Card, inputClass } from "./ui";
 
 export function UserTable({ users = [], locale = "th" }: { users?: User[]; locale?: Locale }) {
   if (!users.length) {
@@ -25,21 +25,49 @@ export function UserTable({ users = [], locale = "th" }: { users?: User[]; local
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {users.map((user) => (
+            {users.map((user) => {
+              const formId = `edit-user-${user.id}`;
+              const code = user.code === "-" ? "" : user.code;
+
+              return (
               <tr key={user.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-semibold text-slate-950">{user.name}</td>
-                <td className="px-4 py-3 capitalize text-slate-600">{user.role}</td>
-                <td className="px-4 py-3 text-slate-600">{user.code}</td>
-                <td className="px-4 py-3 text-slate-600">{user.email}</td>
-                <td className="px-4 py-3"><Badge status={user.status} locale={locale} /></td>
+                <td className="px-4 py-3">
+                  <input form={formId} name="full_name" className={inputClass} defaultValue={user.name} required />
+                </td>
+                <td className="px-4 py-3">
+                  <select form={formId} name="role" className={inputClass} defaultValue={user.role}>
+                    <option value="admin">Admin</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="student">Student</option>
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <input form={formId} name="code" className={inputClass} defaultValue={code} placeholder={t(locale, "studentTeacherCode")} />
+                </td>
+                <td className="px-4 py-3">
+                  <input form={formId} name="email" className={inputClass} defaultValue={user.email} type="email" required />
+                </td>
+                <td className="px-4 py-3">
+                  <select form={formId} name="status" className={inputClass} defaultValue={user.status}>
+                    <option value="active">{t(locale, "active")}</option>
+                    <option value="disabled">{t(locale, "disabled")}</option>
+                  </select>
+                </td>
                 <td className="px-4 py-3 text-right">
-                  <form action={deleteUserAction}>
+                  <form id={formId} action={updateUserAction}>
                     <input type="hidden" name="id" value={user.id} />
-                    <Button variant="ghost" className="h-8 w-8 px-0"><MoreHorizontal size={16} /></Button>
                   </form>
+                  <div className="flex justify-end gap-2">
+                    <Button form={formId} variant="secondary" className="h-8 px-2 text-xs"><Save size={14} /> {t(locale, "saveUser")}</Button>
+                    <form action={deleteUserAction}>
+                    <input type="hidden" name="id" value={user.id} />
+                      <Button variant="danger" className="h-8 px-2 text-xs"><Trash2 size={14} /> {t(locale, "deleteUser")}</Button>
+                  </form>
+                  </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
